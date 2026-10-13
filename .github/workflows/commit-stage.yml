@@ -1,0 +1,49 @@
+
+name: Commit Stage
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout del codice sorgente
+      - name: Checkout source code
+        uses: actions/checkout@v7
+
+      # 2. Configurazione di Java 21
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # 3. Compilazione e test Maven
+      - name: Build and Test
+        run: mvn -B -ntp clean verify
+
+      # 4. Scansione delle vulnerabilita
+      - name: Vulnerability Scan
+        uses: anchore/scan-action@v7
+        id: scan
+        with:
+          path: "."
+          fail-build: false
+          severity-cutoff: high
+          output-format: sarif
+
+      # 5. Caricamento report su GitHub
+      - name: Upload Vulnerability Report
+        if: ${{ !github.event.repository.private && steps.scan.outputs.sarif != '' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
